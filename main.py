@@ -1,6 +1,6 @@
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain.chains import LLMChain, SequentialChain
 import argparse
 import os
 
@@ -17,19 +17,36 @@ api_key = os.getenv("OPENAI_API_KEY")
 
 llm = OpenAI(openai_api_key=api_key)
 
-prompt = PromptTemplate(
+func_generator_prompt = PromptTemplate(
   template="Write a very short {language} function that will {task}",
   input_variables=["language", "task"],
 )
-
-chain = LLMChain(
+func_generator_chain = LLMChain(
   llm=llm,
-  prompt=prompt,
+  prompt=func_generator_prompt,
+  output_key="function",
 )
 
-result = chain({
+code_checking_prompt = PromptTemplate(
+  template="Write a simple unit test that will check if this function {function} is correct in Python",
+  input_variables=["function"],
+)
+code_checking_chain = LLMChain(
+  llm=llm,
+  prompt=code_checking_prompt,
+  output_key="test",
+)
+
+main_chain = SequentialChain(
+  chains=[func_generator_chain, code_checking_chain],
+  input_variables=["language", "task"],
+  output_variables=["function", "test"],
+)
+
+result = main_chain({
   "language": args.language,
   "task": args.task,
 })
 
-print(result["text"])
+print("function", result.get("function"))
+print("test", result.get("test"))
